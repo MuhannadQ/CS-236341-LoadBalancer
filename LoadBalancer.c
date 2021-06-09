@@ -87,10 +87,9 @@ CustomerRequest Pop(CyclicBuffer cyclic_buffer, int lock_num, int server_index) 
         if (lock_num == 1) {
             pthread_cond_wait(&myConVar, &lock12);
         } else {
-            unlockChosenMutex(lock_num, server_index);/////    
+            unlockChosenMutex(lock_num, server_index);///// 
+            return NULL;  
         }
-        
-        return NULL;
     }
     CustomerRequest c = cyclic_buffer->fifo[cyclic_buffer->fifo_read] ;
     cyclic_buffer->fifo_read = (cyclic_buffer->fifo_read + 1) % BUFFER_SIZE;
