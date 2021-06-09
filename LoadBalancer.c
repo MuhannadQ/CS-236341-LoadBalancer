@@ -352,8 +352,8 @@ void *clientToServerThread(void *vargp) {
 }
 
 void *serverToClientThread(void *vargp) {
+    int server_index = *((int *) vargp);
     while (1) {
-        int server_index = *((int *) vargp);
         printf("in serverToClientThread, server_index: %d\n", server_index);
         ServerConnection server_conn = servers_connections[server_index];
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
