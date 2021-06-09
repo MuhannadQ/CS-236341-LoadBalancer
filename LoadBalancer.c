@@ -63,6 +63,7 @@ CustomerRequest InitRequest(int client_socket, int customer_num, char request_ty
 }
 
 CustomerRequest Pop(CyclicBuffer cyclic_buffer) {
+    if ((cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) && !cyclic_buffer->fifo_full) return NULL;
     CustomerRequest c = cyclic_buffer->fifo[cyclic_buffer->fifo_read] ;
     cyclic_buffer->fifo_read = (cyclic_buffer->fifo_read + 1) % BUFFER_SIZE;
     return c;
@@ -73,6 +74,9 @@ CustomerRequest RemoveCustomerRequest(ServerConnection servers_connections[], in
     ServerConnection s = servers_connections[server_num];
     int multiplier = 0;
     CustomerRequest c = Pop(s->request_fifo);
+    if (c == NULL) {
+        return NULL;
+    }
     if (server_num == 0 || server_num == 1) {
         if(c->request_type == 'M') multiplier = 2;
         if (c->request_type == 'P') multiplier = 1;
@@ -149,15 +153,10 @@ CyclicBuffer InitCyclicBuffer() {
 }
 
 int main() {
-    // pthread_t server_thread_id_1;
-    // pthread_t server_thread_id_2;
-    // pthread_t server_thread_id_3;
-    // int server_index_1 = 0;
-    // int server_index_2 = 1;
-    // int server_index_3 = 2;
-    // pthread_create(&server_thread_id_1, NULL, &serverToClientThread, &server_index_1);
-    // pthread_create(&server_thread_id_1, NULL, &serverToClientThread, &server_index_2);
-    // pthread_create(&server_thread_id_1, NULL, &serverToClientThread, &server_index_2);
+    pthread_t server_thread_ids[SERVERS_COUNT];
+    for (int i = 0; i < SERVERS_COUNT; i++) {
+        pthread_create(server_thread_ids + i, NULL, &serverToClientThread, &i);
+    }
     CustomerRequest cyclic_buffer[BUFFER_SIZE];
     // ------------------------------- Connect To Servers -------------------------------
     initServerConnections(servers_connections);
@@ -196,13 +195,8 @@ int main() {
     
     while (1) {
         int* server_index;
-        
-
         printf("Waiting on \'accept\'\n");
         int client_socket = accept(master_socket, (struct sockaddr*)&client_addr, &sock_len);
-
-        pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
-        pthread_join(client_thread_id, (void**) &server_index);
         if (client_socket == -1) {
             fprintf(stderr, "Error on accept --> %s", strerror(errno));
             exit(EXIT_FAILURE);
@@ -210,22 +204,28 @@ int main() {
         char* client_ip_address = inet_ntoa(client_addr.sin_addr);
         fprintf(stdout, "Accept peer --> %s\n", client_ip_address);
 
-
-
-
-        char buffer[2];
-        // memset(buffer, 0, sizeof(buffer));
-        int data_len = recv(servers_connections[*server_index]->lb_server_socket, buffer, sizeof(buffer), 0);
-        if (data_len < 0) {
-            fprintf(stderr, "Error on receiving result --> %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        printf("received data_len from server: %d\n", data_len);
-        printf("received buffer from server: %c%c\n", buffer[0], buffer[1]);
+        pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
+        pthread_join(client_thread_id, (void**) &server_index);
+        pthread_kill(server_thread_ids[*server_index], SIGUSR1);
         
-        send(client_socket, buffer, sizeof(buffer), 0);
-        RemoveCustomerRequest(servers_connections, *server_index);
-        close(client_socket);
+        
+
+
+
+
+        // char buffer[2];
+        // // memset(buffer, 0, sizeof(buffer));
+        // int data_len = recv(servers_connections[*server_index]->lb_server_socket, buffer, sizeof(buffer), 0);
+        // if (data_len < 0) {
+        //     fprintf(stderr, "Error on receiving result --> %s", strerror(errno));
+        //     exit(EXIT_FAILURE);
+        // }
+        // printf("received data_len from server: %d\n", data_len);
+        // printf("received buffer from server: %c%c\n", buffer[0], buffer[1]);
+        
+        // send(client_socket, buffer, sizeof(buffer), 0);
+        // RemoveCustomerRequest(servers_connections, *server_index);
+        // close(client_socket);
 
 
 
