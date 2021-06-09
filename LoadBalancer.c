@@ -193,7 +193,7 @@ int main() {
     socklen_t sock_len = sizeof(struct sockaddr_in);
     struct sockaddr_in client_addr;
     char buffer[2];
-    pthread_t client_thread_id = NULL;
+    pthread_t client_thread_id;
     
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
@@ -212,8 +212,28 @@ int main() {
         char* client_ip_address = inet_ntoa(client_addr.sin_addr);
         fprintf(stdout, "Accept peer --> %s\n", client_ip_address);
 
-        pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
-        pthread_join(client_thread_id, (void**) &server_index);
+        // memset(buffer, 0, sizeof(buffer));
+        int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
+        if (data_len < 0) {
+            fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        printf("received data_len from client: %d\n", data_len);
+        printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
+
+        CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
+        // continue building customer_req
+        printf("debug 1\n");
+        int server_index = AddCustomerRequest(servers_connections, customer_req);
+        printf("debug 2\n");
+        ServerConnection server_conn = servers_connections[server_index];
+
+        send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
+        printf("debug 3\n");
+        // int* result = malloc(sizeof(int));
+        // *result = server_index;
+        // pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
+        // pthread_join(client_thread_id, (void**) &server_index);
 
 
 
