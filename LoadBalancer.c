@@ -18,6 +18,7 @@
 #define SERVERS_PORT 80
 #define SERVERS_COUNT 3
 #define BUFFER_SIZE 256
+pthread_mutex_t lock;
 
 typedef struct CustomerRequest {
     int client_socket;
@@ -153,6 +154,10 @@ CyclicBuffer InitCyclicBuffer() {
 }
 
 int main() {
+    if (pthread_mutex_init(&lock, NULL) != 0) {
+        printf("\n mutex init has failed\n");
+        return 1;
+    }
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
     pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
@@ -326,6 +331,7 @@ void initServerConnections(ServerConnection servers_connections[]) {
 
 void *clientToServerThread(void *vargp) {
     int client_socket = *((int *) vargp);
+    pthread_mutex_lock(&lock);
     printf("in clientToServerThread, client_socket: %d\n", client_socket);
     
     char buffer[2];
@@ -349,14 +355,17 @@ void *clientToServerThread(void *vargp) {
     printf("debug 3\n");
     int* result = malloc(sizeof(int));
     *result = server_index;
+    pthread_mutex_unlock(&lock);
     return (void *) result;
 }
 
 void *serverToClientThread(void *vargp) {
     int server_index = *((int *) vargp);
     while (1) {
+        pthread_mutex_lock(&lock);
         printf("in serverToClientThread, server_index: %d\n", server_index);
         ServerConnection server_conn = servers_connections[server_index];
+        printf("serverToClientThread debug 1");
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
         printf("customer_req: %s\n", customer_req == NULL ? "is NULL": "is not NULL");
         if (customer_req == NULL) {
@@ -375,6 +384,7 @@ void *serverToClientThread(void *vargp) {
         
         send(customer_req->client_socket, buffer, sizeof(buffer), 0);
         close(customer_req->client_socket);
+        pthread_mutex_unlock(&lock);
     }
     pthread_exit(0);
 }
