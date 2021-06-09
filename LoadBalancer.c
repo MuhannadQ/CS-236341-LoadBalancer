@@ -200,7 +200,7 @@ int main() {
     pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
     pthread_create(server_thread_ids + second, NULL, &serverToClientThread, &second);
     pthread_create(server_thread_ids + third, NULL, &serverToClientThread, &third);
-    
+
     while (1) {
         int* server_index;
         printf("Waiting on \'accept\'\n");
@@ -333,7 +333,6 @@ void initServerConnections(ServerConnection servers_connections[]) {
 
 void *clientToServerThread(void *vargp) {
     int client_socket = *((int *) vargp);
-    pthread_mutex_lock(&lock);
     printf("in clientToServerThread, client_socket: %d\n", client_socket);
     
     char buffer[2];
@@ -357,21 +356,19 @@ void *clientToServerThread(void *vargp) {
     printf("debug 3\n");
     int* result = malloc(sizeof(int));
     *result = server_index;
-    pthread_mutex_unlock(&lock);
     return (void *) result;
 }
 
 void *serverToClientThread(void *vargp) {
     int server_index = *((int *) vargp);
     while (1) {
-        pthread_mutex_lock(&lock);
         printf("in serverToClientThread, server_index: %d\n", server_index);
         ServerConnection server_conn = servers_connections[server_index];
         printf("serverToClientThread debug 1");
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
         printf("customer_req: %s\n", customer_req == NULL ? "is NULL": "is not NULL");
         if (customer_req == NULL) {
-            usleep(100000);
+            usleep(200000);
             continue;
         }
         char buffer[2];
@@ -386,7 +383,6 @@ void *serverToClientThread(void *vargp) {
         
         send(customer_req->client_socket, buffer, sizeof(buffer), 0);
         close(customer_req->client_socket);
-        pthread_mutex_unlock(&lock);
     }
     pthread_exit(0);
 }
