@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <pthread.h>
+#include <signal.h>
 
 #define LB_ADDRESS "10.0.0.1"
 #define LB_PORT 80
