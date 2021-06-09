@@ -46,7 +46,7 @@ typedef struct ServerConnection {
 
 } *ServerConnection;
 
-pthread_mutex_t lockOrder;
+// pthread_mutex_t lockOrder;
 pthread_mutex_t lock12;
 pthread_mutex_t lock23[SERVERS_COUNT];
 ServerConnection servers_connections[SERVERS_COUNT];
@@ -198,7 +198,7 @@ int lock23Init() {
     
 
 int main() {
-    if (pthread_mutex_init(&lock12, NULL) != 0 ||  lock23Init() != 0 || pthread_mutex_init(&lockOrder, NULL) != 0) {
+    if (pthread_mutex_init(&lock12, NULL) != 0 ||  lock23Init() != 0) { // || pthread_mutex_init(&lockOrder, NULL) != 0
         printf("\n mutex init has failed\n");
         return 1;
     }
@@ -238,16 +238,8 @@ int main() {
     struct sockaddr_in client_addr;
     char buffer[2];
 
-    pthread_t client_thread_id1;    
-    pthread_create(&client_thread_id1, NULL, &clientToServerThread, NULL);
-    pthread_t client_thread_id2;    
-    pthread_create(&client_thread_id2, NULL, &clientToServerThread, NULL);
-    pthread_t client_thread_id3;    
-    pthread_create(&client_thread_id3, NULL, &clientToServerThread, NULL);
-    pthread_t client_thread_id4;    
-    pthread_create(&client_thread_id4, NULL, &clientToServerThread, NULL);
-    pthread_t client_thread_id5;    
-    pthread_create(&client_thread_id5, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id;    
+    pthread_create(&client_thread_id, NULL, &clientToServerThread, NULL);
 
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
@@ -395,7 +387,6 @@ void *clientToServerThread(void *vargp) {
         CustomerRequest c = Pop(CYCLIC_Q, 1, -1);
         printf("customer_req in CLIENT: %s\n", c == NULL ? "is NULL": "is not NULL");
         if (c == NULL) {
-            usleep(500000);
             continue;
         }
         int client_socket = c->client_socket;// *((int *) vargp);
@@ -414,13 +405,13 @@ void *clientToServerThread(void *vargp) {
         CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
         // continue building customer_req
         printf("debug 1\n");
-        pthread_mutex_lock(&lockOrder);
+        // pthread_mutex_lock(&lockOrder);
         int server_index = AddCustomerRequest(servers_connections, customer_req);
         printf("debug 2\n");
         ServerConnection server_conn = servers_connections[server_index];
 
         send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
-        pthread_mutex_unlock(&lockOrder);
+        // pthread_mutex_unlock(&lockOrder);
         // int* result = malloc(sizeof(int));
         // *result = server_index;
     }
