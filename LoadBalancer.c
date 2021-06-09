@@ -12,7 +12,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <pthread.h>
-#include <signal.h>
 
 #define LB_ADDRESS "10.0.0.1"
 #define LB_PORT 80
@@ -207,10 +206,6 @@ int main() {
 
         pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
         pthread_join(client_thread_id, (void**) &server_index);
-        pthread_kill(server_thread_ids[*server_index], SIGUSR1);
-        
-        
-
 
 
 
@@ -363,7 +358,7 @@ void *serverToClientThread(void *vargp) {
         ServerConnection server_conn = servers_connections[server_index];
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
         if (customer_req == NULL) {
-            sleep(2);
+            usleep(100000);
             continue;
         }
         char buffer[2];
