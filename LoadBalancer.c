@@ -238,8 +238,12 @@ int main() {
     struct sockaddr_in client_addr;
     char buffer[2];
 
-    pthread_t client_thread_id;    
-    pthread_create(&client_thread_id, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id1;    
+    pthread_create(&client_thread_id1, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id2;    
+    pthread_create(&client_thread_id2, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id3;    
+    pthread_create(&client_thread_id3, NULL, &clientToServerThread, NULL);
 
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
