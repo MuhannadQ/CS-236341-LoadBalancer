@@ -141,8 +141,9 @@ void Push(CyclicBuffer cyclic_buffer, CustomerRequest c, int lock_num, int serve
     cyclic_buffer->fifo_write = (cyclic_buffer->fifo_write + 1) % BUFFER_SIZE;
     printf("Push debug 3\n");
     if (cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) cyclic_buffer->fifo_full = true;
-    if (lock_num == 1 && was_empty) {pthread_cond_signal(&myConVar);}
+    
     unlockChosenMutex(lock_num, server_index);/////
+    if (lock_num == 1 && was_empty) {pthread_cond_signal(&myConVar);}
 }
 
 //Adds a request to a server (which will be chosen appropriatly by chooseServer method)//
