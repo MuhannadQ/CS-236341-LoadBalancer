@@ -18,7 +18,6 @@
 #define SERVERS_PORT 80
 #define SERVERS_COUNT 3
 #define BUFFER_SIZE 256
-pthread_mutex_t lock;
 
 typedef struct CustomerRequest {
     int client_socket;
@@ -47,12 +46,30 @@ typedef struct ServerConnection {
 
 } *ServerConnection;
 
+pthread_mutex_t lock12;
+pthread_mutex_t lock23[SERVERS_COUNT];
 ServerConnection servers_connections[SERVERS_COUNT];
+CyclicBuffer cyclicQ;
 
 int chooseServer(ServerConnection servers_connections[], char request_type, int request_len);
 void initServerConnections(ServerConnection servers_connections[]);
 void *clientToServerThread(void *vargp);
 void *serverToClientThread(void *vargp);
+
+void lockChosenMutex(int lock_num, int server_index) {
+    if (lock_num == 1) {
+        pthread_mutex_lock(&lock12);
+    } else {
+        pthread_mutex_lock(&(lock23[server_index]));
+    }
+}
+void unlockChosenMutex(int lock_num, int server_index) {
+    if (lock_num == 1) {
+        pthread_mutex_unlock(&lock12);
+    } else {
+        pthread_mutex_unlock(&(lock23[server_index]));
+    }
+}
 
 CustomerRequest InitRequest(int client_socket, int customer_num, char request_type, int request_len) {
     CustomerRequest c = (CustomerRequest)malloc(sizeof(struct CustomerRequest));
@@ -63,10 +80,15 @@ CustomerRequest InitRequest(int client_socket, int customer_num, char request_ty
     return c;
 }
 
-CustomerRequest Pop(CyclicBuffer cyclic_buffer) {
-    if ((cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) && !cyclic_buffer->fifo_full) return NULL;
+CustomerRequest Pop(CyclicBuffer cyclic_buffer, int lock_num, int server_index) {
+    lockChosenMutex(lock_num, server_index);/////
+    if ((cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) && !cyclic_buffer->fifo_full) {
+        unlockChosenMutex(lock_num, server_index);/////
+        return NULL;
+    }
     CustomerRequest c = cyclic_buffer->fifo[cyclic_buffer->fifo_read] ;
     cyclic_buffer->fifo_read = (cyclic_buffer->fifo_read + 1) % BUFFER_SIZE;
+    unlockChosenMutex(lock_num, server_index);/////
     return c;
 }
 
@@ -74,7 +96,9 @@ CustomerRequest Pop(CyclicBuffer cyclic_buffer) {
 CustomerRequest RemoveCustomerRequest(ServerConnection servers_connections[], int server_num) {
     ServerConnection s = servers_connections[server_num];
     int multiplier = 0;
-    CustomerRequest c = Pop(s->request_fifo);
+    // lock
+    CustomerRequest c = Pop(s->request_fifo, 2, server_num);
+    // unlock
     if (c == NULL) {
         return NULL;
     }
@@ -90,13 +114,16 @@ CustomerRequest RemoveCustomerRequest(ServerConnection servers_connections[], in
 
     }
     int delta = multiplier * c->request_len;
+    pthread_mutex_lock(&(lock23[server_num]));/////
     s->load -= delta;
-
+    pthread_mutex_unlock(&(lock23[server_num]));/////
     assert(s->load >= 0);
+    
     return c;
 }
 
-void Push(CyclicBuffer cyclic_buffer, CustomerRequest c) {
+void Push(CyclicBuffer cyclic_buffer, CustomerRequest c, int lock_num, int server_index) {
+    lockChosenMutex(lock_num, server_index);/////
     printf("Push debug 1\n");
     assert(cyclic_buffer->fifo_full == false);
     printf("Push debug 2\n");
@@ -104,7 +131,7 @@ void Push(CyclicBuffer cyclic_buffer, CustomerRequest c) {
     cyclic_buffer->fifo_write = (cyclic_buffer->fifo_write + 1) % BUFFER_SIZE;
     printf("Push debug 3\n");
     if (cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) cyclic_buffer->fifo_full = true;
-
+    unlockChosenMutex(lock_num, server_index);/////
 }
 
 //Adds a request to a server (which will be chosen appropriatly by chooseServer method)//
@@ -114,7 +141,9 @@ int AddCustomerRequest(ServerConnection servers_connections[], CustomerRequest c
     ServerConnection s = servers_connections[server_num];
     printf("AddCustomerRequest debug 2\n");
     int multiplier = 0;
-    Push(s->request_fifo, c);
+    // lock12
+    Push(s->request_fifo, c, 2, server_num);
+    // unlock12
     printf("AddCustomerRequest debug 3\n");
     if (server_num == 0 || server_num == 1) {
         if (c->request_type == 'M') multiplier = 2;
@@ -128,7 +157,10 @@ int AddCustomerRequest(ServerConnection servers_connections[], CustomerRequest c
 
     }
     int delta = multiplier * c->request_len;
+    pthread_mutex_lock(&(lock23[server_num]));/////
     s->load += delta;
+    pthread_mutex_unlock(&(lock23[server_num]));/////
+    
     printf("%d\n", server_num);
     return server_num;
 }
@@ -153,8 +185,19 @@ CyclicBuffer InitCyclicBuffer() {
     return cb;
 }
 
+int lock23Init() {
+    for (int i = 0; i < SERVERS_COUNT; i++) {
+        if (pthread_mutex_init(&(lock23[i]), NULL) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+    
+
 int main() {
-    if (pthread_mutex_init(&lock, NULL) != 0) {
+    if (pthread_mutex_init(&lock12, NULL) != 0 ||  lock23Init() != 0) {
         printf("\n mutex init has failed\n");
         return 1;
     }
@@ -193,8 +236,10 @@ int main() {
     socklen_t sock_len = sizeof(struct sockaddr_in);
     struct sockaddr_in client_addr;
     char buffer[2];
-    pthread_t client_thread_id;
-    
+
+    pthread_t client_thread_id;    
+    pthread_create(&client_thread_id, NULL, &clientToServerThread, NULL);
+
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
     pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
@@ -213,46 +258,27 @@ int main() {
         fprintf(stdout, "Accept peer --> %s\n", client_ip_address);
 
         // memset(buffer, 0, sizeof(buffer));
-        int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
-        if (data_len < 0) {
-            fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        printf("received data_len from client: %d\n", data_len);
-        printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
+        // int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
+        // if (data_len < 0) {
+        //     fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
+        //     exit(EXIT_FAILURE);
+        // }
+        // printf("received data_len from client: %d\n", data_len);
+        // printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
 
-        CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
-        // continue building customer_req
-        printf("debug 1\n");
-        int server_index = AddCustomerRequest(servers_connections, customer_req);
-        printf("debug 2\n");
-        ServerConnection server_conn = servers_connections[server_index];
+        // CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
+        // // continue building customer_req
+        // printf("debug 1\n");
+        // int server_index = AddCustomerRequest(servers_connections, customer_req);
+        // printf("debug 2\n");
+        // ServerConnection server_conn = servers_connections[server_index];
 
-        send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
-        printf("debug 3\n");
+        // send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
+        // printf("debug 3\n");
         // int* result = malloc(sizeof(int));
         // *result = server_index;
         // pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
         // pthread_join(client_thread_id, (void**) &server_index);
-
-
-
-        // char buffer[2];
-        // // memset(buffer, 0, sizeof(buffer));
-        // int data_len = recv(servers_connections[*server_index]->lb_server_socket, buffer, sizeof(buffer), 0);
-        // if (data_len < 0) {
-        //     fprintf(stderr, "Error on receiving result --> %s", strerror(errno));
-        //     exit(EXIT_FAILURE);
-        // }
-        // printf("received data_len from server: %d\n", data_len);
-        // printf("received buffer from server: %c%c\n", buffer[0], buffer[1]);
-        
-        // send(client_socket, buffer, sizeof(buffer), 0);
-        // RemoveCustomerRequest(servers_connections, *server_index);
-        // close(client_socket);
-
-
-
     }
     // pthread_join(server_thread_id_1, NULL);
     // pthread_join(server_thread_id_2, NULL);
