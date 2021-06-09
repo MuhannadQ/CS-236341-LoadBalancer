@@ -49,7 +49,7 @@ typedef struct ServerConnection {
 pthread_mutex_t lock12;
 pthread_mutex_t lock23[SERVERS_COUNT];
 ServerConnection servers_connections[SERVERS_COUNT];
-CyclicBuffer cyclicQ;
+CyclicBuffer CYCLIC_Q;
 
 int chooseServer(ServerConnection servers_connections[], char request_type, int request_len);
 void initServerConnections(ServerConnection servers_connections[]);
@@ -201,7 +201,7 @@ int main() {
         printf("\n mutex init has failed\n");
         return 1;
     }
-    
+    CYCLIC_Q = InitCyclicBuffer();
     CustomerRequest cyclic_buffer[BUFFER_SIZE];
     // ------------------------------- Connect To Servers -------------------------------
     initServerConnections(servers_connections);
@@ -238,7 +238,7 @@ int main() {
     char buffer[2];
 
     pthread_t client_thread_id;    
-    // pthread_create(&client_thread_id, NULL, &clientToServerThread, NULL);
+    pthread_create(&client_thread_id, NULL, &clientToServerThread, NULL);
 
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
@@ -257,24 +257,27 @@ int main() {
         char* client_ip_address = inet_ntoa(client_addr.sin_addr);
         fprintf(stdout, "Accept peer --> %s\n", client_ip_address);
 
+        CustomerRequest curr_customer_req = InitRequest(client_socket, 0, ' ', -1); // only client_socket is relevant
+        Push(CYCLIC_Q, curr_customer_req,  1, -1);
+
         // memset(buffer, 0, sizeof(buffer));
-        int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
-        if (data_len < 0) {
-            fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        printf("received data_len from client: %d\n", data_len);
-        printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
+        // int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
+        // if (data_len < 0) {
+        //     fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
+        //     exit(EXIT_FAILURE);
+        // }
+        // printf("received data_len from client: %d\n", data_len);
+        // printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
 
-        CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
-        // continue building customer_req
-        printf("debug 1\n");
-        int server_index = AddCustomerRequest(servers_connections, customer_req);
-        printf("debug 2\n");
-        ServerConnection server_conn = servers_connections[server_index];
+        // CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
+        // // continue building customer_req
+        // printf("debug 1\n");
+        // int server_index = AddCustomerRequest(servers_connections, customer_req);
+        // printf("debug 2\n");
+        // ServerConnection server_conn = servers_connections[server_index];
 
-        send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
-        printf("debug 3\n");
+        // send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
+        // printf("debug 3\n");
         // int* result = malloc(sizeof(int));
         // *result = server_index;
         // pthread_create(&client_thread_id, NULL, &clientToServerThread, &client_socket);
@@ -378,31 +381,39 @@ void initServerConnections(ServerConnection servers_connections[]) {
 }
 
 void *clientToServerThread(void *vargp) {
-    int client_socket = *((int *) vargp);
-    printf("in clientToServerThread, client_socket: %d\n", client_socket);
-    
-    char buffer[2];
-    // memset(buffer, 0, sizeof(buffer));
-    int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
-    if (data_len < 0) {
-        fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
-        exit(EXIT_FAILURE);
+    while (1) {
+        CustomerRequest c = Pop(CYCLIC_Q, 1, -1);
+        printf("customer_req in CLIENT: %s\n", c == NULL ? "is NULL": "is not NULL");
+        if (c == NULL) {
+            usleep(200000);
+            continue;
+        }
+        int client_socket = c->client_socket;// *((int *) vargp);
+        printf("in clientToServerThread, client_socket: %d\n", client_socket);
+        
+        char buffer[2];
+        // memset(buffer, 0, sizeof(buffer));
+        int data_len = recv(client_socket, buffer, sizeof(buffer), 0);
+        if (data_len < 0) {
+            fprintf(stderr, "Error on receiving command --> %s", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        printf("received data_len from client: %d\n", data_len);
+        printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
+
+        CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
+        // continue building customer_req
+        printf("debug 1\n");
+        int server_index = AddCustomerRequest(servers_connections, customer_req);
+        printf("debug 2\n");
+        ServerConnection server_conn = servers_connections[server_index];
+
+        send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
+        printf("debug 3\n");
+        // int* result = malloc(sizeof(int));
+        // *result = server_index;
     }
-    printf("received data_len from client: %d\n", data_len);
-    printf("received buffer from client: %c%c\n", buffer[0], buffer[1]);
-
-    CustomerRequest customer_req = InitRequest(client_socket, 0, buffer[0], buffer[1]);
-    // continue building customer_req
-    printf("debug 1\n");
-    int server_index = AddCustomerRequest(servers_connections, customer_req);
-    printf("debug 2\n");
-    ServerConnection server_conn = servers_connections[server_index];
-
-    send(server_conn->lb_server_socket, buffer, sizeof(buffer), 0);
-    printf("debug 3\n");
-    int* result = malloc(sizeof(int));
-    *result = server_index;
-    return (void *) result;
+    // return (void *) result;
 }
 
 void *serverToClientThread(void *vargp) {
@@ -412,7 +423,7 @@ void *serverToClientThread(void *vargp) {
         ServerConnection server_conn = servers_connections[server_index];
         printf("serverToClientThread debug 1");
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
-        printf("customer_req: %s\n", customer_req == NULL ? "is NULL": "is not NULL");
+        printf("customer_req in SERVER: %s\n", customer_req == NULL ? "is NULL": "is not NULL");
         if (customer_req == NULL) {
             usleep(200000);
             continue;
