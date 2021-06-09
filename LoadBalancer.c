@@ -154,9 +154,10 @@ CyclicBuffer InitCyclicBuffer() {
 
 int main() {
     pthread_t server_thread_ids[SERVERS_COUNT];
-    for (int i = 0; i < SERVERS_COUNT; i++) {
-        pthread_create(server_thread_ids + i, NULL, &serverToClientThread, &i);
-    }
+    int first = 0, second = 1, third = 2;
+    pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
+    pthread_create(server_thread_ids + second, NULL, &serverToClientThread, &second);
+    pthread_create(server_thread_ids + third, NULL, &serverToClientThread, &third);
     CustomerRequest cyclic_buffer[BUFFER_SIZE];
     // ------------------------------- Connect To Servers -------------------------------
     initServerConnections(servers_connections);
@@ -357,6 +358,7 @@ void *serverToClientThread(void *vargp) {
         printf("in serverToClientThread, server_index: %d\n", server_index);
         ServerConnection server_conn = servers_connections[server_index];
         CustomerRequest customer_req = RemoveCustomerRequest(servers_connections, server_index);
+        printf("customer_req: %s\n", customer_req == NULL ? "is NULL": "is not NULL");
         if (customer_req == NULL) {
             usleep(100000);
             continue;
