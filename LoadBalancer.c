@@ -202,7 +202,7 @@ int main() {
     pthread_create(server_thread_ids + third, NULL, &serverToClientThread, &third);
 
     while (1) {
-        int* server_index;
+
         printf("Waiting on \'accept\'\n");
         int client_socket = accept(master_socket, (struct sockaddr*)&client_addr, &sock_len);
         if (client_socket == -1) {
