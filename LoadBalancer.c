@@ -18,7 +18,7 @@
 #define SERVERS_PORT 80
 #define SERVERS_COUNT 3
 #define BUFFER_SIZE 256
-
+pthread_cond_t  myConVar = PTHREAD_COND_INITIALIZER;
 typedef struct CustomerRequest {
     int client_socket;
     int customer_num;
@@ -84,7 +84,12 @@ CustomerRequest InitRequest(int client_socket, int customer_num, char request_ty
 CustomerRequest Pop(CyclicBuffer cyclic_buffer, int lock_num, int server_index) {
     lockChosenMutex(lock_num, server_index);/////
     if ((cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) && !cyclic_buffer->fifo_full) {
-        unlockChosenMutex(lock_num, server_index);/////
+        if (lock_num == 1) {
+            pthread_cond_wait(&myConVar, &lock12);
+        } else {
+            unlockChosenMutex(lock_num, server_index);/////    
+        }
+        
         return NULL;
     }
     CustomerRequest c = cyclic_buffer->fifo[cyclic_buffer->fifo_read] ;
@@ -125,6 +130,10 @@ CustomerRequest RemoveCustomerRequest(ServerConnection servers_connections[], in
 
 void Push(CyclicBuffer cyclic_buffer, CustomerRequest c, int lock_num, int server_index) {
     lockChosenMutex(lock_num, server_index);/////
+    bool was_empty = false;
+    if ((cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) && !cyclic_buffer->fifo_full) {
+        was_empty = true;
+    }
     printf("Push debug 1\n");
     assert(cyclic_buffer->fifo_full == false);
     printf("Push debug 2\n");
@@ -132,6 +141,7 @@ void Push(CyclicBuffer cyclic_buffer, CustomerRequest c, int lock_num, int serve
     cyclic_buffer->fifo_write = (cyclic_buffer->fifo_write + 1) % BUFFER_SIZE;
     printf("Push debug 3\n");
     if (cyclic_buffer->fifo_read == cyclic_buffer->fifo_write) cyclic_buffer->fifo_full = true;
+    if (lock_num == 1 && was_empty) {pthread_cond_signal(&myConVar);}
     unlockChosenMutex(lock_num, server_index);/////
 }
 
@@ -382,12 +392,12 @@ void initServerConnections(ServerConnection servers_connections[]) {
 }
 
 void *clientToServerThread(void *vargp) {
+    usleep(200000);
     while (1) {
         
         CustomerRequest c = Pop(CYCLIC_Q, 1, -1);
         printf("customer_req in CLIENT: %s\n", c == NULL ? "is NULL": "is not NULL");
         if (c == NULL) {
-            usleep(50000);
             continue;
         }
         int client_socket = c->client_socket;// *((int *) vargp);
@@ -420,6 +430,7 @@ void *clientToServerThread(void *vargp) {
 }
 
 void *serverToClientThread(void *vargp) {
+    sleep(1);
     int server_index = *((int *) vargp);
     while (1) {
         printf("in serverToClientThread, server_index: %d\n", server_index);
