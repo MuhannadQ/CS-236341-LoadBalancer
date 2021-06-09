@@ -244,6 +244,10 @@ int main() {
     pthread_create(&client_thread_id2, NULL, &clientToServerThread, NULL);
     pthread_t client_thread_id3;    
     pthread_create(&client_thread_id3, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id4;    
+    pthread_create(&client_thread_id4, NULL, &clientToServerThread, NULL);
+    pthread_t client_thread_id5;    
+    pthread_create(&client_thread_id5, NULL, &clientToServerThread, NULL);
 
     pthread_t server_thread_ids[SERVERS_COUNT];
     int first = 0, second = 1, third = 2;
@@ -391,7 +395,7 @@ void *clientToServerThread(void *vargp) {
         CustomerRequest c = Pop(CYCLIC_Q, 1, -1);
         printf("customer_req in CLIENT: %s\n", c == NULL ? "is NULL": "is not NULL");
         if (c == NULL) {
-            usleep(1000000);
+            usleep(500000);
             continue;
         }
         int client_socket = c->client_socket;// *((int *) vargp);
