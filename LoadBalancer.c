@@ -387,7 +387,7 @@ void *clientToServerThread(void *vargp) {
         CustomerRequest c = Pop(CYCLIC_Q, 1, -1);
         printf("customer_req in CLIENT: %s\n", c == NULL ? "is NULL": "is not NULL");
         if (c == NULL) {
-            usleep(200000);
+            usleep(400000);
             continue;
         }
         int client_socket = c->client_socket;// *((int *) vargp);
