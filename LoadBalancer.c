@@ -158,11 +158,7 @@ int main() {
         printf("\n mutex init has failed\n");
         return 1;
     }
-    pthread_t server_thread_ids[SERVERS_COUNT];
-    int first = 0, second = 1, third = 2;
-    pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
-    pthread_create(server_thread_ids + second, NULL, &serverToClientThread, &second);
-    pthread_create(server_thread_ids + third, NULL, &serverToClientThread, &third);
+    
     CustomerRequest cyclic_buffer[BUFFER_SIZE];
     // ------------------------------- Connect To Servers -------------------------------
     initServerConnections(servers_connections);
@@ -198,6 +194,12 @@ int main() {
     struct sockaddr_in client_addr;
     char buffer[2];
     pthread_t client_thread_id = NULL;
+    
+    pthread_t server_thread_ids[SERVERS_COUNT];
+    int first = 0, second = 1, third = 2;
+    pthread_create(server_thread_ids + first, NULL, &serverToClientThread, &first);
+    pthread_create(server_thread_ids + second, NULL, &serverToClientThread, &second);
+    pthread_create(server_thread_ids + third, NULL, &serverToClientThread, &third);
     
     while (1) {
         int* server_index;
