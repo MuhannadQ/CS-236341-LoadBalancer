@@ -46,8 +46,8 @@ typedef struct ServerConnection {
 
 } *ServerConnection;
 
-pthread_cond_t  cond12;
-pthread_mutex_t lock12;
+pthread_cond_t  cond12 = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t lock12 = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond23[SERVERS_COUNT];
 pthread_mutex_t lock23[SERVERS_COUNT];
 ServerConnection servers_connections[SERVERS_COUNT];
@@ -216,10 +216,9 @@ CyclicBuffer InitCyclicBuffer() {
 int lock23Init() {
     int i;
     for (i = 0; i < SERVERS_COUNT; i++) {
-        if (pthread_mutex_init(&(lock23[i]), NULL) != 0) {
+        if (pthread_mutex_init(&(lock23[i]), NULL) != 0 || pthread_cond_init(&(cond23[i]), NULL)) {
             return -1;
         }
-        cond23[i] = PTHREAD_COND_INITIALIZER;
     }
     return 0;
 }
@@ -227,9 +226,8 @@ int lock23Init() {
 
 
 int main() {
-    cond12 = PTHREAD_COND_INITIALIZER;
-    if (pthread_mutex_init(&lock12, NULL) != 0 || lock23Init() != 0) { // || pthread_mutex_init(&lockOrder, NULL) != 0
-        printf("\n mutex init has failed\n");
+    if (lock23Init() != 0) { // || pthread_mutex_init(&lockOrder, NULL) != 0
+        printf("\n mutex23 or cond23 init has failed\n");
         return 1;
     }
     CYCLIC_Q = InitCyclicBuffer();
