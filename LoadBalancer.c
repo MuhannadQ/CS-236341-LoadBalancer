@@ -191,9 +191,9 @@ int AddCustomerRequest(ServerConnection servers_connections[], CustomerRequest c
     s->load += delta;
     printf("AddCustomerRequest parameters: socket- %d, requestType- %c, requestLen- %d, serverNum- %d, multiplier- %d, delta - %d, load - %d\n", c->client_socket, c->request_type, c->request_len, server_num, 
         multiplier,delta, s->load);
-    
+
     pthread_mutex_unlock(&(lock23[server_num]));/////
-    pthread_cond_signal(&(cond23[server_index]));
+    pthread_cond_signal(&(cond23[server_num]));
     
     printf("%d\n", server_num);
     return server_num;
