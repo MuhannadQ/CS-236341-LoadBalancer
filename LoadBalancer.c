@@ -29,10 +29,10 @@ typedef struct CyclicBuffer {
     int fifo_write;
     bool fifo_full;
     CustomerRequest fifo[BUFFER_SIZE];
-
 } *CyclicBuffer;
 
 //Each server has a cyclic buffer of requests it sent (so when the request finishes we can decrease its load from the load field
+typedef struct ServerConnection {
     char server_name[10];
     char server_address[15];
     int lb_server_socket;
@@ -40,7 +40,6 @@ typedef struct CyclicBuffer {
     int delta;
     int new_load;
     CyclicBuffer request_fifo;
-
 } *ServerConnection;
 
 pthread_mutex_t lock12 = PTHREAD_MUTEX_INITIALIZER;
