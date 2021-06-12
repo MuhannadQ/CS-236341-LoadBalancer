@@ -76,7 +76,7 @@ void condWaitChosenMutex(int lock_num, int server_index) {
     if (lock_num == 1) {
         pthread_cond_wait(&cond12, &lock12);
     } else {
-        pthread_cond_wait(&(cond23[server_index]), &(lock23[server_index]);
+        pthread_cond_wait(&(cond23[server_index]), &(lock23[server_index]));
     }
 }
 void condSignalChosenMutex(int lock_num, int server_index) {
